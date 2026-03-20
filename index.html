@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BOOM — Explosión Playground</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0b0b;
+    --surface: #171212;
+    --border: #2e1f1f;
+    --fire: #ff4e00;
+    --ember: #ffaa00;
+    --smoke: #8b7355;
+    --text: #f0e6d3;
+    --dim: #6b5b4e;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    overflow: hidden;
+    cursor: crosshair;
+    font-family: 'Barlow Condensed', sans-serif;
+    color: var(--text);
+    user-select: none;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #clickzone {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+
+  #panel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 1rem 1.2rem;
+    gap: 0.6rem;
+    pointer-events: none;
+  }
+
+  .btn-wrap {
+    pointer-events: all;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .expl-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.12s;
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+    border-radius: 3px;
+  }
+
+  .expl-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--fire);
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .expl-btn:hover::before { opacity: 0.12; }
+  .expl-btn.active {
+    border-color: var(--ember);
+    color: var(--ember);
+    box-shadow: 0 0 12px rgba(255,170,0,0.3);
+  }
+  .expl-btn.active::before { opacity: 0.18; }
+
+  .btn-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 4px var(--fire));
+  }
+
+  #header {
+    position: fixed;
+    top: 1.2rem; left: 0; right: 0;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    letter-spacing: 0.25em;
+    color: var(--fire);
+    text-shadow: 0 0 30px rgba(255,78,0,0.5), 0 0 60px rgba(255,78,0,0.2);
+    line-height: 1;
+  }
+
+  #header p {
+    font-size: 0.9rem;
+    color: var(--dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 0.2rem;
+  }
+
+  #counter {
+    position: fixed;
+    top: 1.2rem; right: 1.5rem;
+    z-index: 10;
+    text-align: right;
+    pointer-events: none;
+  }
+
+  #counter .num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.5rem;
+    color: var(--ember);
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(255,170,0,0.4);
+  }
+
+  #counter .lbl {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+
+  #flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+  }
+
+  .shockwave {
+    position: fixed;
+    pointer-events: none;
+    z-index: 4;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    animation: shockwave-anim 0.6s ease-out forwards;
+  }
+
+  @keyframes shockwave-anim {
+    0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+<div id="clickzone"></div>
+<div id="flash"></div>
+
+<div id="header">
+  <h1>BOOM</h1>
+  <p>Haz click en cualquier lugar</p>
+</div>
+
+<div id="counter">
+  <div class="num" id="count-num">0</div>
+  <div class="lbl">explosiones</div>
+</div>
+
+<div id="panel">
+  <div class="btn-wrap">
+    <span class="btn-icon">🔥</span>
+    <button class="expl-btn active" data-type="fire" onclick="selectType('fire',this)">FUEGO</button>
+  </div>
+  <div class="btn-wrap">
+    <span class="btn-icon">💥</span>
+    <button class="expl-btn" data-type="burst" onclick="selectType('burst',this)">RÁFAGA</button>
+  </div>
+  <div class="btn-wrap">
+    <span class="btn-icon">⚡</span>
+    <button class="expl-btn" data-type="electric" onclick="selectType('electric',this)">ELÉCTRICA</button>
+  </div>
+  <div class="btn-wrap">
+    <span class="btn-icon">❄️</span>
+    <button class="expl-btn" data-type="cryo" onclick="selectType('cryo',this)">CRIOGÉNICA</button>
+  </div>
+  <div class="btn-wrap">
+    <span class="btn-icon">☢️</span>
+    <button class="expl-btn" data-type="nuclear" onclick="selectType('nuclear',this)">NUCLEAR</button>
+  </div>
+  <div class="btn-wrap">
+    <span class="btn-icon">🌀</span>
+    <button class="expl-btn" data-type="vortex" onclick="selectType('vortex',this)">VÓRTICE</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const flashEl = document.getElementById('flash');
+const countEl = document.getElementById('count-num');
+const clickzone = document.getElementById('clickzone');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let particles = [];
+let currentType = 'fire';
+let totalCount = 0;
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function selectType(type, btn) {
+  currentType = type;
+  document.querySelectorAll('.expl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function playSound(type) {
+  const ac = audioCtx;
+  if (ac.state === 'suspended') ac.resume();
+  const now = ac.currentTime;
+
+  if (type === 'fire') {
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.8, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 8) * 0.8
+            + Math.sin(2 * Math.PI * 60 * t) * Math.exp(-t * 12) * 0.5;
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    src.connect(gain); gain.connect(ac.destination);
+    src.start();
+  }
+  else if (type === 'burst') {
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.4, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 25);
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const filter = ac.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 800;
+    const gain = ac.createGain(); gain.gain.value = 1.2;
+    src.connect(filter); filter.connect(gain); gain.connect(ac.destination);
+    src.start();
+  }
+  else if (type === 'electric') {
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.3);
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.start(now); osc.stop(now + 0.35);
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.3, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1)*Math.exp(-(i/ac.sampleRate)*15)*0.3;
+    const src = ac.createBufferSource(); src.buffer = buf;
+    src.connect(ac.destination); src.start();
+  }
+  else if (type === 'cryo') {
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.6, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      d[i] = (Math.random()*2-1) * Math.exp(-t * 5) * 0.3
+            + Math.sin(2*Math.PI*3200*t) * Math.exp(-t*10) * 0.15
+            + Math.sin(2*Math.PI*6400*t) * Math.exp(-t*14) * 0.1;
+    }
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const filter = ac.createBiquadFilter(); filter.type = 'bandpass';
+    filter.frequency.value = 3000; filter.Q.value = 0.5;
+    const gain = ac.createGain(); gain.gain.value = 0.8;
+    src.connect(filter); filter.connect(gain); gain.connect(ac.destination);
+    src.start();
+  }
+  else if (type === 'nuclear') {
+    const buf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      d[i] = (Math.random()*2-1) * Math.exp(-t * 2) * 0.9
+            + Math.sin(2*Math.PI*30*t) * Math.exp(-t*3) * 0.7
+            + Math.sin(2*Math.PI*15*t) * Math.exp(-t*1.5) * 0.4;
+    }
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(1.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 2);
+    const filter = ac.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 400;
+    src.connect(filter); filter.connect(gain); gain.connect(ac.destination);
+    src.start();
+  }
+  else if (type === 'vortex') {
+    const osc1 = ac.createOscillator();
+    const osc2 = ac.createOscillator();
+    const gain = ac.createGain();
+    osc1.type = 'sine'; osc2.type = 'sine';
+    osc1.frequency.setValueAtTime(200, now);
+    osc1.frequency.exponentialRampToValueAtTime(800, now + 0.5);
+    osc2.frequency.setValueAtTime(210, now);
+    osc2.frequency.exponentialRampToValueAtTime(820, now + 0.5);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc1.connect(gain); osc2.connect(gain); gain.connect(ac.destination);
+    osc1.start(now); osc2.start(now);
+    osc1.stop(now + 0.6); osc2.stop(now + 0.6);
+  }
+}
+
+const PALETTES = {
+  fire:     ['#ff4e00','#ff7700','#ffaa00','#fff0a0','#ff2200','#ffdd00'],
+  burst:    ['#ffffff','#ffeecc','#ffbb44','#ff6600','#cc3300','#ff9922'],
+  electric: ['#00ffff','#88ffff','#ffffff','#aad4ff','#4499ff','#0044ff'],
+  cryo:     ['#aaeeff','#ffffff','#ccf4ff','#44ccff','#0099cc','#e0f8ff'],
+  nuclear:  ['#aaff00','#ffff00','#ffffff','#88ff00','#ffcc00','#44ff88'],
+  vortex:   ['#cc00ff','#ff00cc','#ff44aa','#8800ff','#ffffff','#ff88ff'],
+};
+
+const FLASH_COLORS = {
+  fire: 'rgba(255,120,0,',
+  burst: 'rgba(255,220,150,',
+  electric: 'rgba(100,200,255,',
+  cryo: 'rgba(180,240,255,',
+  nuclear: 'rgba(200,255,100,',
+  vortex: 'rgba(200,100,255,',
+};
+
+class Particle {
+  constructor(x, y, type) {
+    this.x = x; this.y = y; this.type = type;
+    this.palette = PALETTES[type];
+    this.color = this.palette[Math.floor(Math.random()*this.palette.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const speed = this.getSpeed();
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.life = 1;
+    this.decay = 0.012 + Math.random() * 0.025;
+    this.size = this.getSize();
+    this.gravity = this.getGravity();
+    this.shape = this.getShape();
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotSpeed = (Math.random() - 0.5) * 0.2;
+    this.trail = [];
+    this.drag = 0.96;
+    if (type === 'vortex') {
+      this.angle = angle;
+      this.radius = Math.random() * 80 + 20;
+      this.angularV = (Math.random() > 0.5 ? 1 : -1) * (0.08 + Math.random() * 0.12);
+      this.cx = x; this.cy = y;
+      this.spiralDecay = 0.97;
+    }
+  }
+
+  getSpeed() {
+    const s = { fire:8, burst:14, electric:16, cryo:10, nuclear:18, vortex:5 };
+    return (s[this.type] || 10) * (0.4 + Math.random());
+  }
+
+  getSize() {
+    const s = { fire:6, burst:4, electric:3, cryo:5, nuclear:8, vortex:4 };
+    return (s[this.type] || 5) * (0.5 + Math.random() * 1.5);
+  }
+
+  getGravity() {
+    const g = { fire:0.08, burst:0.18, electric:-0.02, cryo:0.04, nuclear:0.06, vortex:0 };
+    return g[this.type] || 0.1;
+  }
+
+  getShape() {
+    const shapes = {
+      fire: ['circle','tear'],
+      burst: ['circle','square','triangle'],
+      electric: ['line','spark'],
+      cryo: ['diamond','snowflake'],
+      nuclear: ['circle','ring'],
+      vortex: ['circle','swirl'],
+    };
+    const list = shapes[this.type] || ['circle'];
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  update() {
+    if (this.type === 'vortex') {
+      this.angle += this.angularV;
+      this.radius *= this.spiralDecay;
+      this.x = this.cx + Math.cos(this.angle) * this.radius;
+      this.y = this.cy + Math.sin(this.angle) * this.radius;
+    } else {
+      this.trail.push({x: this.x, y: this.y, life: this.life});
+      if (this.trail.length > 6) this.trail.shift();
+      this.vx *= this.drag;
+      this.vy *= this.drag;
+      this.vy += this.gravity;
+      this.x += this.vx;
+      this.y += this.vy;
+    }
+    this.rotation += this.rotSpeed;
+    this.life -= this.decay;
+    this.size *= 0.985;
+  }
+
+  draw(ctx) {
+    if (this.life <= 0) return;
+    ctx.save();
+    if (this.trail.length > 1 && this.type !== 'cryo') {
+      for (let i = 0; i < this.trail.length - 1; i++) {
+        const t = this.trail[i];
+        const alpha = (i / this.trail.length) * this.life * 0.4;
+        ctx.beginPath();
+        ctx.strokeStyle = this.color;
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = this.size * 0.4 * (i / this.trail.length);
+        ctx.moveTo(t.x, t.y);
+        ctx.lineTo(this.trail[i+1].x, this.trail[i+1].y);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = this.life;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    const s = this.size;
+    ctx.fillStyle = this.color;
+    ctx.strokeStyle = this.color;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = s * 2;
+
+    if (this.shape === 'circle') {
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI * 2); ctx.fill();
+    } else if (this.shape === 'square') {
+      ctx.fillRect(-s/2, -s/2, s, s);
+    } else if (this.shape === 'triangle') {
+      ctx.beginPath();
+      ctx.moveTo(0, -s); ctx.lineTo(s*0.866, s*0.5); ctx.lineTo(-s*0.866, s*0.5);
+      ctx.closePath(); ctx.fill();
+    } else if (this.shape === 'diamond') {
+      ctx.beginPath();
+      ctx.moveTo(0, -s*1.2); ctx.lineTo(s*0.7, 0); ctx.lineTo(0, s*1.2); ctx.lineTo(-s*0.7, 0);
+      ctx.closePath(); ctx.fill();
+    } else if (this.shape === 'line' || this.shape === 'spark') {
+      ctx.lineWidth = s * 0.3;
+      ctx.beginPath(); ctx.moveTo(-s*1.5, 0); ctx.lineTo(s*1.5, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -s*0.8); ctx.lineTo(0, s*0.8); ctx.stroke();
+    } else if (this.shape === 'tear') {
+      ctx.beginPath();
+      ctx.moveTo(0, -s*1.2);
+      ctx.bezierCurveTo(s, -s*0.4, s, s*0.6, 0, s);
+      ctx.bezierCurveTo(-s, s*0.6, -s, -s*0.4, 0, -s*1.2);
+      ctx.fill();
+    } else if (this.shape === 'ring') {
+      ctx.lineWidth = s * 0.3;
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.8, 0, Math.PI * 2); ctx.stroke();
+    } else if (this.shape === 'snowflake') {
+      ctx.lineWidth = s * 0.25;
+      for (let a = 0; a < 6; a++) {
+        const ang = (a / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(ang) * s * 1.4, Math.sin(ang) * s * 1.4);
+        ctx.stroke();
+      }
+    } else if (this.shape === 'swirl') {
+      ctx.lineWidth = s * 0.3;
+      ctx.beginPath();
+      for (let a = 0; a < Math.PI * 3; a += 0.1) {
+        const r = a / (Math.PI * 3) * s;
+        const px = Math.cos(a) * r, py = Math.sin(a) * r;
+        a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  isDead() { return this.life <= 0 || this.size < 0.2; }
+}
+
+function spawnShockwave(x, y, type) {
+  const div = document.createElement('div');
+  div.className = 'shockwave';
+  const sizes = { fire:120, burst:160, electric:200, cryo:140, nuclear:300, vortex:180 };
+  const sz = sizes[type] || 150;
+  const colors = {
+    fire:'rgba(255,100,0,0.35)', burst:'rgba(255,200,80,0.4)',
+    electric:'rgba(80,200,255,0.4)', cryo:'rgba(150,230,255,0.35)',
+    nuclear:'rgba(180,255,50,0.45)', vortex:'rgba(180,80,255,0.4)'
+  };
+  div.style.cssText = `left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;border:2px solid ${colors[type]};`;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 700);
+}
+
+function doFlash(type) {
+  const col = FLASH_COLORS[type] || 'rgba(255,200,100,';
+  const intensities = { nuclear:0.35, burst:0.28, fire:0.2, electric:0.25, cryo:0.15, vortex:0.2 };
+  const alpha = intensities[type] || 0.2;
+  flashEl.style.background = col + alpha + ')';
+  flashEl.style.transition = 'none';
+  flashEl.style.opacity = '1';
+  setTimeout(() => {
+    flashEl.style.transition = 'opacity 0.4s ease';
+    flashEl.style.opacity = '0';
+  }, 30);
+}
+
+const COUNTS = { fire:60, burst:80, electric:70, cryo:55, nuclear:120, vortex:50 };
+
+function explode(x, y, type) {
+  const count = COUNTS[type] || 60;
+  for (let i = 0; i < count; i++) particles.push(new Particle(x, y, type));
+  if (type === 'nuclear') {
+    for (let i = 0; i < 30; i++) {
+      const p = new Particle(x, y, 'burst');
+      p.vx *= 0.3; p.vy *= 0.3; p.size *= 2; p.color = '#ffffff';
+      particles.push(p);
+    }
+  }
+  if (type === 'electric') {
+    for (let i = 0; i < 20; i++) {
+      const p = new Particle(x, y, 'electric');
+      p.size = 2; p.vx *= 2; p.vy *= 2;
+      particles.push(p);
+    }
+  }
+  doFlash(type);
+  spawnShockwave(x, y, type);
+  playSound(type);
+  totalCount++;
+  countEl.textContent = totalCount;
+}
+
+function loop() {
+  ctx.fillStyle = 'rgba(13,11,11,0.2)';
+  ctx.fillRect(0, 0, W, H);
+  for (let i = particles.length - 1; i >= 0; i--) {
+    particles[i].update();
+    particles[i].draw(ctx);
+    if (particles[i].isDead()) particles.splice(i, 1);
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+
+clickzone.addEventListener('click', e => explode(e.clientX, e.clientY, currentType));
+clickzone.addEventListener('touchstart', e => {
+  e.preventDefault();
+  Array.from(e.touches).forEach(t => explode(t.clientX, t.clientY, currentType));
+}, { passive: false });
+</script>
+</body>
+</html>
